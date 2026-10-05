@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/architecture.py\"; [ -f \"$f\" ] && python3 \"$f\" --quiet; exit 0",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

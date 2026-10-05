@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Гейты среды: всё ли на месте после разворачивания скиллом life-os-sreda.
+"""Гейты среды: всё ли на месте после разворачивания скиллом modular-life-os-sreda.
 
     python3 check.py <путь к среде>
 
@@ -22,9 +22,12 @@ REQUIRED = [
     "about-me/how-to-talk-to-me.md",
     "about-me/goals.md",
     "about-me/verbatim.md",
+    "about-me/CLAUDE.md",
     "memory/MEMORY.md",
+    "architecture.py",
+    "architecture.json",
 ]
-SYSTEM_DIRS = {"about-me", "constitution", "memory"}
+SYSTEM_DIRS = {"about-me", "constitution", "memory", "brand"}
 NAME_OK = re.compile(r"^[a-z0-9][a-z0-9.\-]*$|^(CLAUDE|MEMORY|README|SKILL|AGENTS)\.md$")
 SECRETS = re.compile(
     r"sk-[A-Za-z0-9_\-]{20,}"
@@ -90,8 +93,8 @@ def main():
             continue
         if not NAME_OK.match(p.name):
             errors.append(f"Имя не английское или не в kebab-case: {rel}")
-    if (root / "_project").exists():
-        errors.append("Остался шаблон «_project/» — скопируй его под проекты и удали")
+    if (root / "_module").exists():
+        errors.append("Остался шаблон «_module/» — скопируй его под проекты и удали")
 
     map_text = (root / "map.md").read_text(encoding="utf-8") if (root / "map.md").exists() else ""
     claude_text = (root / "CLAUDE.md").read_text(encoding="utf-8") if (root / "CLAUDE.md").exists() else ""
@@ -103,13 +106,15 @@ def main():
             errors.append(f"Папка «{d.name}/» не внесена в map.md")
         if d.name != "memory" and not (d / "00-overview.md").exists():
             errors.append(f"В папке «{d.name}/» нет карты 00-overview.md")
+        if d.name != "memory" and not (d / "CLAUDE.md").exists():
+            errors.append(f"У модуля «{d.name}/» нет своего CLAUDE.md")
+        if not (d / "architecture.json").exists():
+            errors.append(f"У модуля «{d.name}/» нет машинной карты — прогони python3 architecture.py")
+        if d.name not in claude_text:
+            errors.append(f"Модуля «{d.name}/» нет в корневом CLAUDE.md")
         if d.name in SYSTEM_DIRS:
             continue
         projects.append(d.name)
-        if not (d / "CLAUDE.md").exists():
-            errors.append(f"У проекта «{d.name}/» нет своего CLAUDE.md")
-        if d.name not in claude_text:
-            errors.append(f"Проекта «{d.name}/» нет в маршрутизации корневого CLAUDE.md")
     if not projects:
         notes.append("Ни одной папки проекта. Если проекты назвали — разложи их по папкам")
 
@@ -141,6 +146,30 @@ def main():
         opened = re.search(r"^## Открытые вопросы\s*\n(.*?)(?=^## |\Z)", text, re.S | re.M)
         if opened and re.search(r"^-\s*\S", opened.group(1), re.M):
             notes.append(f"Есть открытые вопросы: {rel}")
+
+    arch = root / "architecture.json"
+    if arch.exists():
+        import json
+        try:
+            known = set(json.loads(arch.read_text(encoding="utf-8")).get("документы", {}))
+        except ValueError:
+            known = None
+            errors.append("architecture.json не читается — прогони python3 architecture.py")
+        if known is not None:
+            fresh = {str(md.relative_to(root)) for md in root.rglob("*.md")
+                     if not any(part.startswith(".") for part in md.relative_to(root).parts)
+                     and frontmatter(md.read_text(encoding="utf-8")) is not None}
+            if fresh - known:
+                errors.append(f"Машинная карта отстала от файлов ({len(fresh - known)} документов нет в ней) — прогони python3 architecture.py")
+    hook = root / ".claude/settings.json"
+    if not hook.exists() or "architecture.py" not in hook.read_text(encoding="utf-8"):
+        notes.append("Хук пересборки карт не подключён (.claude/settings.json) — карты придётся пересобирать руками")
+
+    showcase = root / "brand/style-reference.html"
+    if showcase.exists() and re.search(r"^\s*example:\s*true", showcase.read_text(encoding="utf-8"), re.M):
+        errors.append("В brand/style-reference.html остались значения-пример — заполни TOKENS и убери «example: true»")
+    if (root / "brand").is_dir() and not (root / "brand/style-reference.md").exists():
+        errors.append("В brand/ нет style-reference.md — истина по стилю живёт в MD, а не в HTML")
 
     talk = root / "about-me/how-to-talk-to-me.md"
     if talk.exists():
