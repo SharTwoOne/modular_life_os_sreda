@@ -27,7 +27,7 @@ REQUIRED = [
     "architecture.py",
     "architecture.json",
 ]
-SYSTEM_DIRS = {"about-me", "constitution", "memory", "brand"}
+SYSTEM_DIRS = {"about-me", "constitution", "memory", "brand", "portal"}
 NAME_OK = re.compile(r"^[a-z0-9][a-z0-9.\-]*$|^(CLAUDE|MEMORY|README|SKILL|AGENTS)\.md$")
 SECRETS = re.compile(
     r"sk-[A-Za-z0-9_\-]{20,}"
@@ -170,6 +170,19 @@ def main():
         errors.append("В brand/style-reference.html остались значения-пример — заполни TOKENS и убери «example: true»")
     if (root / "brand").is_dir() and not (root / "brand/style-reference.md").exists():
         errors.append("В brand/ нет style-reference.md — истина по стилю живёт в MD, а не в HTML")
+
+    portal = root / "portal"
+    if portal.is_dir():
+        if not (portal / "index.html").exists():
+            errors.append("В portal/ нет index.html — скопируй его из portal-template/")
+        for name, what in (("brand.js", "Бренд"), ("about.js", "Обо мне")):
+            data = portal / "data" / name
+            if not data.exists():
+                errors.append(f"Нет portal/data/{name} — страница «{what}» пустая")
+            elif re.search(r"^\s*example:\s*true", data.read_text(encoding="utf-8"), re.M):
+                errors.append(f"В portal/data/{name} остался пример — заполни его словами человека и убери «example: true»")
+        if not (root / "brand/style-reference.md").exists():
+            notes.append("Портал есть, а бренда нет: страница «Бренд» показывает пример — собери brand/ (часть 2)")
 
     talk = root / "about-me/how-to-talk-to-me.md"
     if talk.exists():
