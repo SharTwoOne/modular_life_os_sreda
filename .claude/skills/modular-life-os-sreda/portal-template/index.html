@@ -291,6 +291,9 @@
     .toast{bottom:calc(20px + env(safe-area-inset-bottom));max-width:calc(100vw - 32px)}
     .example-flag{right:12px;bottom:12px}
   }
+  .trait{margin:0 0 16px}.trait-h{display:flex;justify-content:space-between;gap:12px;font-size:15px}.trait-h span{opacity:.7}
+  .trait-bar{height:8px;border-radius:999px;background:color-mix(in srgb,currentColor 12%,transparent);margin-top:8px;overflow:hidden}.trait-bar i{display:block;height:100%;background:var(--accent);border-radius:999px}
+  ul.plain{margin:10px 0 0;padding-left:18px}ul.plain li{margin:6px 0}.muted{opacity:.65}
 </style>
 <style id="brand-css"></style>
 </head>
@@ -349,7 +352,9 @@
   const NAV = [
     {id:'sys-me', title:'Я', icon:IC.me, home:'about', items:[
       {page:'about', label:'Обо мне', tree:[
-        ['a-who','Кто я'], ['a-projects','Проекты'], ['a-goals','Цели'], ['a-talk','Как со мной говорить'], ['a-words','Мои слова'] ]} ]},
+        ['a-who','Кто я'],
+        ...(window.ABOUT && window.ABOUT.personality ? [['a-path','Путь'], ['a-values','Ценности'], ['a-mind','Как я думаю'], ['a-voice','Голос'], ['a-portrait','Портрет'], ['a-story','История']] : []),
+        ['a-projects','Проекты'], ['a-goals','Цели'], ['a-talk','Как со мной говорить'], ['a-words','Мои слова'] ]} ]},
     {id:'sys-style', title:'Стиль', icon:IC.style, home:'brand', items:[
       {page:'brand', label:'Бренд', tree:[
         ['b-colors','Цвета'], ['b-canvas','Полотна'], ['b-type','Типографика'], ['b-shape','Холст и формы'],
@@ -412,6 +417,36 @@
   const none = what => `<div class="empty">${esc(what)} пока нет. Допиши в файлы, и агент перенесёт сюда.</div>`;
   const src = path => path ? `<p class="src">Источник: <code>${esc(path)}</code></p>` : '';
 
+  /* Личность: поле personality в data/about.js (часть «Глубокая распаковка», references/personality.md).
+     Нет поля — разделов нет, старые порталы не меняются. Пустой слой — «пока нет». */
+  function personality(L){
+    if(!L) return '';
+    const S = src(L.source || 'about-me/personality.md');
+    const ul = xs => `<ul class="plain">${list(xs).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+    const box = (h, xs) => `<div class="card"><h4>${esc(h)}</h4>${list(xs).length ? ul(xs) : '<p class="muted">пока нет</p>'}</div>`;
+    const V = L.voice || {};
+    return sec('a-path', 'Обо мне · Путь', 'Путь',
+        list(L.path).length ? `<div style="margin-top:12px">${list(L.path).map(p => `<div class="goal"><span class="num hit">${esc(p.when || '')}</span><p>${esc(p.what)}${p.changed ? `<small>${esc(p.changed)}</small>` : ''}</p></div>`).join('')}</div>` + S : none('Пути'))
+      + sec('a-values', 'Обо мне · Ценности', 'Ценности',
+        list(L.values).length ? `<div class="grid g3" style="margin-top:22px">${list(L.values).map(v => `<div class="card"><h4>${esc(v.name)}</h4><p>${esc(v.proof || 'заявлено, без примера')}</p></div>`).join('')}</div>` + S : none('Ценностей'),
+        'У каждой — случай, когда она мне чего-то стоила.')
+      + sec('a-mind', 'Обо мне · Как я думаю', 'Как я думаю',
+        (list(L.thinking).length || list(L.positions).length) ? `<div class="grid g2" style="margin-top:22px">${box('Различения', L.thinking)}${box('Позиции', L.positions)}</div>` + S : none('Образа мысли'))
+      + sec('a-voice', 'Обо мне · Голос', 'Как я звучу',
+        (V.spoken || V.written || list(V.phrases).length) ? `<div class="grid g2" style="margin-top:22px">
+          <div class="card"><h4>Устно</h4><p>${esc(V.spoken || 'пока нет')}</p></div><div class="card"><h4>Письменно</h4><p>${esc(V.written || 'пока нет')}</p></div></div>
+          <div style="margin-top:18px">${list(V.phrases).map(q => `<div class="quote">${esc(q)}</div>`).join('')}</div>
+          ${list(V.never).length ? `<div class="dos" style="margin-top:18px"><div><h4>Не бывает никогда</h4><ul>${list(V.never).map(t => `<li><b>✕</b><span>${esc(t)}</span></li>`).join('')}</ul></div></div>` : ''}` + S : none('Голоса'))
+      + sec('a-portrait', 'Обо мне · Портрет', 'Портрет',
+        (list(L.traits).length || L.archetype) ? `${L.archetype ? `<p class="lead">${esc(L.archetype)}</p>` : ''}
+          <div style="margin-top:18px">${list(L.traits).map(t => `<div class="trait"><div class="trait-h"><b>${esc(t.name)}</b><span>${esc(t.score ?? '')}${t.sure ? ` · ${esc(t.sure)}` : ''}</span></div>
+            <div class="trait-bar"><i style="width:${Math.max(0, Math.min(100, +t.score || 0))}%"></i></div>${t.note ? `<p class="muted">${esc(t.note)}</p>` : ''}</div>`).join('')}</div>
+          <div class="grid g2" style="margin-top:22px">${box('Сильные стороны', L.strengths)}${box('Слабые места и риски', L.risks)}${box('Что двигает', L.drives)}${box('Что глушит', L.drains)}</div>
+          <p class="src">Вывод из моих слов и поступков, а не тест.</p>` + S : none('Портрета'))
+      + sec('a-story', 'Обо мне · История', 'Кто я — история',
+        list(L.story).length ? `<div class="prose" style="margin-top:22px">${list(L.story).map(p => `<p>${esc(p)}</p>`).join('')}</div>${L.card ? `<div class="quote" style="margin-top:18px">${esc(L.card)}</div>` : ''}` + src('about-me/story.md') : none('Истории'));
+  }
+
   document.getElementById('about').innerHTML = `
     <section class="hero"><div class="wrap">
       <div class="eyebrow">${esc(NAME)} · Обо мне</div>
@@ -421,6 +456,7 @@
     </div></section>`
     + sec('a-who', 'Обо мне · Кто я', A.whoTitle || 'Кто я',
         list(A.profile).length ? `<div class="prose" style="margin-top:22px">${list(A.profile).map(p => `<p>${esc(p)}</p>`).join('')}</div>` + src(A.profileSource) : none('Профиля'))
+    + personality(A.personality)
     + sec('a-projects', 'Обо мне · Проекты', 'Проекты',
         list(A.projects).length ? `<div class="grid g3" style="margin-top:22px">${list(A.projects).map(p => `<div class="card"><h4>${esc(p.name)}</h4><p>${esc(p.what)}</p>${p.status ? `<span class="tag">${esc(p.status)}</span>` : ''}</div>`).join('')}</div>` : none('Проектов'))
     + sec('a-goals', 'Обо мне · Цели', 'Цели',
